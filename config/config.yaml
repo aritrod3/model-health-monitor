@@ -1,0 +1,81 @@
+# Model Health Monitor Configuration
+
+# Database Configuration
+database:
+  path: "sqlite:///monitor.db"
+  echo: false
+
+# Model Configuration
+model:
+  path: "model/model.pkl"
+  type: "random_forest"  # random_forest or gradient_boosting
+  hyperparameters:
+    random_forest:
+      n_estimators: 100
+      max_depth: 10
+      random_state: 42
+      n_jobs: -1
+    gradient_boosting:
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      random_state: 42
+
+# Data Configuration
+data:
+  train_path: "data/raw/adult_train.csv"
+  test_path: "data/raw/adult_test.csv"
+  target_column: "income"
+
+# API Configuration
+api:
+  host: "127.0.0.1"
+  port: 8000
+  reload: false
+
+# Monitoring Configuration
+monitoring:
+  async_mode: true  # If true, use async event queue for monitoring (fire-and-forget)
+  event_queue_maxsize: 10000  # Maximum queue size (0 = unlimited)
+  worker:
+    poll_interval: 5.0  # Seconds between queue polls when queue is empty
+    batch_size: 50  # Maximum events to process per batch
+    monitoring_interval: 300.0  # Seconds between monitoring runs (drift detection, alerts)
+    monitoring_min_predictions: 100  # Minimum predictions needed before running monitoring
+  drift:
+    threshold: 0.05
+    severity_threshold: 0.001  # Only extreme drift is critical (was 0.01)
+    method: "ks"  # ks, mannwhitney, chi2
+    check_threshold: 100  # Run drift detection after every N predictions (threshold-based, not time-based)
+  circuit_breaker:
+    enabled: true  # If true, halt serving when critical drift detected
+    severity_threshold: 0.001  # P-value threshold for circuit breaker (must match drift.severity_threshold)
+    lookback_hours: 24  # Hours to look back for drift signals
+  
+  performance:
+    degradation_threshold: 0.05
+    critical_threshold: 0.15
+  
+  metrics:
+    trend_window_days: 7
+    live_window: 1000  # Number of most recent labeled predictions to use for live metrics
+
+# Alerting Configuration
+alerting:
+  channel: "log"  # log, email, webhook
+  email:
+    enabled: false
+    smtp_server: ""
+    smtp_port: 587
+    from_email: ""
+    to_emails: []
+  webhook:
+    enabled: false
+    url: ""
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # null or path to log file
+  rotation: false

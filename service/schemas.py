@@ -15,6 +15,7 @@ class PredictionRequest(BaseModel):
     features: Dict[str, Any] = Field(..., description="Feature dictionary")
     include_explanation: bool = Field(default=False, description="Generate explanation")
     explanation_method: Optional[str] = Field(default="shap", description="Explanation method")
+    label: Optional[str] = Field(None, description="Optional ground truth label for computing live metrics")
 
 
 class PredictionResponse(BaseModel):
@@ -23,6 +24,7 @@ class PredictionResponse(BaseModel):
     prediction: Any = Field(..., description="Predicted class")
     probability: Optional[Dict[str, float]] = Field(None, description="Class probabilities")
     explanation: Optional[Dict[str, float]] = Field(None, description="Feature importance")
+    model_status: str = Field(default="healthy", description="Model trust status: healthy, degraded, or blocked")
 
 
 class BatchPredictionRequest(BaseModel):
@@ -43,7 +45,7 @@ class BatchPredictionResponse(BaseModel):
 class MetricsResponse(BaseModel):
     """Response schema for metrics endpoint."""
     
-    metrics: Dict[str, float] = Field(..., description="Performance metrics")
+    metrics: Dict[str, Optional[float]] = Field(..., description="Performance metrics (None if N/A)")
     timestamp: str = Field(..., description="Metrics computation timestamp")
 
 

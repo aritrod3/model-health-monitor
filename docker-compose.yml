@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./model:/app/model
+      - ./logs:/app/logs
+      - ./monitor.db:/app/monitor.db
+    environment:
+      - MODEL_MONITOR_CONFIG=/app/config/config.yaml
+      - MODEL_MONITOR_DATABASE_PATH=sqlite:///monitor.db
+    command: python -m uvicorn service.app:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
