@@ -47,30 +47,20 @@ def test_batch_predict_endpoint_without_model(client, sample_features: dict):
 
 def test_metrics_endpoint(client, db_session):
     """Test metrics endpoint."""
-    from storage.db import Base, Metric
-    # Ensure tables exist
-    Base.metadata.create_all(bind=db_session.bind)
-    
     # Mock database session
     with patch('service.app.get_db_session', return_value=db_session):
         from storage.db import store_metrics
         store_metrics(db_session, {'accuracy': 0.85, 'precision': 0.82})
-        db_session.commit()
         
         response = client.get("/metrics")
-        assert response.status_code in [200, 404, 500]  # 500 if no data, which is OK
+        assert response.status_code in [200, 404]
 
 
 def test_drift_endpoint(client, db_session):
     """Test drift endpoint."""
-    from storage.db import Base
-    # Ensure tables exist
-    Base.metadata.create_all(bind=db_session.bind)
-    
     with patch('service.app.get_db_session', return_value=db_session):
         response = client.get("/drift")
-        assert response.status_code in [200, 500]  # 500 if no data
-        if response.status_code == 200:
+        assert response.status_code == 200
         data = response.json()
         assert "drifted_features" in data
         assert "drift_scores" in data
