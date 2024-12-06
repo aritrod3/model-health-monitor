@@ -1,26 +1,83 @@
 # Model Health Monitor
 
-A production-oriented system for monitoring deployed tabular classification models. Tracks data drift, performance decay, and provides decision-level explanations over time.
+Production monitoring for tabular classifiers. Detects when your model starts making bad decisions because the data changed, not because the model broke.
 
-## Overview
+## What This Does
 
-The system provides continuous monitoring of a deployed classifier through:
+Most ML monitoring tools tell you the model is wrong. This one tells you why. It watches feature distributions drift, tracks performance decay, and stops serving when drift gets critical. The circuit breaker halts predictions at p-value < 0.001—better to return 503 than garbage.
 
-- **Drift Detection**: Statistical tests to identify shifts in feature distributions between training and production data
-- **Performance Monitoring**: Tracks model performance metrics over time to detect decay
-- **Explanation Generation**: Provides interpretable explanations for model decisions
-- **Alerting**: Configurable alerts when drift or performance issues are detected
+Built for the Adult income classification dataset (RandomForest by default), but the monitoring logic works for any tabular classifier.
 
-## Architecture
+## Quick Start
 
-- **`model/`**: Training, evaluation, and explanation modules
-- **`service/`**: FastAPI service for inference and monitoring endpoints
-- **`monitoring/`**: Drift detection, metrics collection, and alerting logic
-- **`storage/`**: Database interface for storing predictions, metrics, and drift signals
-- **`scripts/`**: Local execution utilities
+Train, serve, monitor:
 
-## Usage
+```bash
+# 1. Train (expects data/raw/adult_train.csv)
+python scripts/train_model.py
 
-Data should be uploaded to `data/raw/` in CSV format. The system will process it through the monitoring pipeline once configured.
+# 2. Start API
+python scripts/run_local.py
+# Runs on http://127.0.0.1:8000
 
-See individual module docstrings for interface specifications.
+# 3. Make a prediction
+curl -X POST "http://127.0.0.1:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "features": {
+      "age": 39,
+      "workclass": "State-gov",
+      "education": "Bachelors",
+      "hours-per-week": 40,
+      ...
+    },
+    "include_explanation": true
+  }'
+```
+
+The dashboard at `http://localhost:8000/` shows drift status, metrics, and alerts. Auto-refreshes every 30 seconds.
+
+## Architecture Decisions
+
+**Async event queue**: Predictions return immediately; monitoring happens in background threads. Tradeoff: if the queue fills (10k max), events drop silently. Serving continues, but you lose history.
+
+**Drift detection**: KS test for numeric features, Chi-square for categorical. Runs every 100 predictions or every 5 minutes, whichever comes first. Not real-time, but fast enough to catch distribution shifts before they cause damage.
+
+**Circuit breaker**: When drift p-value drops below 0.001, the API returns 503. No fallback model—just stops. You can acknowledge drift signals to resume, or wait 24 hours for auto-recovery.
+
+**SQLite by default**: Fine for single-instance deployments. Not production-ready for scale, but zero-config and sufficient for monitoring workloads.
+
+## API
+
+- `POST /predict` - Single prediction with optional explanation
+- `POST /predict/batch` - Batch predictions
+- `GET /metrics` - Current performance metrics (requires labeled predictions)
+- `GET /drift` - Recent drift detection results
+- `GET /health` - Health check (includes circuit breaker status)
+
+See `/docs` for full OpenAPI spec.
+
+## Monitoring
+
+Tracks everything: predictions, probabilities, explanations, drift signals, alerts. Stores in SQLite (`monitor.db`).
+
+**Important**: Metrics only update when you provide ground truth labels. Without labels, you're blind to performance degradation until labels arrive (could be days). This is a known limitation—the system assumes you have some way to get labels eventually.
+
+## Project Structure
+
+```
+model-health-monitor/
+├── model/          # Training, evaluation, prediction
+├── monitoring/     # Drift detection, metrics, alerts, circuit breaker
+├── service/        # FastAPI app with dashboard
+├── storage/        # SQLite database interface
+└── scripts/        # Training and monitoring workflows
+```
+
+## Requirements
+
+Python 3.8+, scikit-learn, FastAPI, SQLAlchemy. See `requirements.txt`.
+
+## License
+
+MIT
